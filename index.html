@@ -29,8 +29,9 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:5px 6px;t
 .mu{color:var(--mu)}.res{font-size:20px;font-weight:800}
 @media print{header,.noprint{display:none}body{background:#fff;color:#000}}
 </style></head><body>
-<header><b>🏏 Indoor Cricket</b><button onclick="go('setup')">New</button><button onclick="go('hist')">History</button><button onclick="pdf()">PDF</button></header>
+<header><b>🏏 Scorer</b><button onclick="go('setup')">New</button><button onclick="go('hist')">History</button><button onclick="pdf()">PDF</button><button id="gb" onclick="grp()">☁</button></header>
 <main id="app"></main><div id="dlg"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /*ENGINE*/
 const CFG={wd:2,nb:2,wkt:5};
@@ -71,7 +72,23 @@ function result(m){
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let S={ms:[],cur:null,view:'setup',tab:'score',mode:'',fix:false,wk:null,sp:null,cnt:1,fmt:11};
 try{const d=JSON.parse(localStorage.getItem('icm1')||'null');if(d){S.ms=d.ms||[];S.cur=d.cur;S.view=S.cur?'live':'setup'}}catch(e){}
-const save=()=>{try{localStorage.setItem('icm1',JSON.stringify({ms:S.ms,cur:S.cur}))}catch(e){}};
+const FB={apiKey:"AIzaSyC0zw-IBQTa6VM-LH0VKB7glG7uqg3TfzU",authDomain:"cricket-scorer-cb941.firebaseapp.com",projectId:"cricket-scorer-cb941",storageBucket:"cricket-scorer-cb941.firebasestorage.app",messagingSenderId:"160375874730",appId:"1:160375874730:web:54b0a762b2f433911e9cd3"};
+let DB=null,G='',UN=null,LP={},ST='';
+try{G=localStorage.getItem('icmg')||'';firebase.initializeApp(FB);DB=firebase.firestore()}catch(e){}
+const col=()=>DB.collection('groups').doc(G).collection('matches');
+const lsave=()=>{try{localStorage.setItem('icm1',JSON.stringify({ms:S.ms,cur:S.cur}))}catch(e){}};
+const save=()=>{lsave();push()};
+function hd(){const b=$('#gb');if(b)b.textContent='☁ '+(G||'Set group')+(ST?' ⚠':'')}
+function push(all){if(!DB||!G)return;(all?S.ms:[M()]).forEach(m=>{if(!m)return;const j=JSON.stringify(m);if(LP[m.id]===j)return;LP[m.id]=j;col().doc(String(m.id)).set({j,ts:Date.now()}).catch(()=>{ST='err';hd()})})}
+function sub(){if(UN)UN();UN=null;if(!DB||!G)return;let first=true;
+ UN=col().onSnapshot(sn=>{ST='';
+  sn.docChanges().forEach(ch=>{const id=+ch.doc.id;
+   if(ch.type=='removed'){S.ms=S.ms.filter(x=>x.id!=id);delete LP[id];if(S.cur==id){S.cur=null;S.view='hist'}return}
+   if(ch.doc.metadata.hasPendingWrites)return;
+   const j=ch.doc.data().j,m=JSON.parse(j),i=S.ms.findIndex(x=>x.id==id);LP[id]=j;if(i<0)S.ms.push(m);else S.ms[i]=m});
+  S.ms.sort((a,b)=>b.id-a.id);if(first){first=false;push(true)}lsave();hd();render()},()=>{ST='err';hd()})}
+function grp(){dlg('Group code: everyone using the same code shares the same matches. Keep it private.',v=>{v=(v||'').toLowerCase().replace(/[^a-z0-9_-]/g,'');if(v.length<4)return dlg('Use at least 4 letters or numbers');
+ if(G&&G!=v){S.ms=[];S.cur=null;S.view='hist';LP={}}G=v;try{localStorage.setItem('icmg',G)}catch(e){}hd();sub();render()},G)}
 const M=()=>S.ms.find(x=>x.id==S.cur);
 function go(v){S.view=v;if(v=='setup')S.cur=null;S.fix=false;save();render()}
 function start(){
@@ -101,7 +118,7 @@ let DL=null;
 function dlg(msg,fn,def){DL={fn};$('#dlg').innerHTML=`<div class="modal"><div class="card"><p>${esc(msg)}</p>${def!=null?`<input id="dli" value="${esc(def)}">`:''}<div class="row" style="margin-top:10px">${fn?'<button class="btn" style="flex:1" onclick="dx()">Cancel</button>':''}<button class="btn pri" style="flex:1" onclick="${fn?'dok()':'dx()'}">OK</button></div></div></div>`}
 function dx(){DL=null;$('#dlg').innerHTML=''}
 function dok(){const f=DL.fn,i=$('#dli'),v=i?i.value:null;dx();f(v)}
-function delMatch(id){dlg('Delete this match? This cannot be undone.',()=>{S.ms=S.ms.filter(x=>x.id!=id);if(S.cur==id)S.cur=null;save();render()})}
+function delMatch(id){dlg('Delete this match? This cannot be undone.',()=>{if(DB&&G)col().doc(String(id)).delete().catch(()=>{});delete LP[id];S.ms=S.ms.filter(x=>x.id!=id);if(S.cur==id)S.cur=null;lsave();render()})}
 function open(id,v){S.cur=id;S.view=v;S.tab='score';save();render()}
 const ovs=b=>Math.floor(b/6)+'.'+b%6;
 /*PDF*/
@@ -202,5 +219,5 @@ function render(){
   <div class="row" style="margin-top:12px"><button class="btn" onclick="S.wk=null;render()">Cancel</button><button class="btn w" style="flex:1" onclick="wkOk()">Confirm wicket</button></div></div></div>`}
  A.innerHTML=h;
 }
-render();
+render();hd();sub();if(!G&&DB)setTimeout(grp,400)
 </script></body></html>
