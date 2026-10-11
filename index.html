@@ -29,9 +29,9 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:5px 6px;t
 .mu{color:var(--mu)}.res{font-size:20px;font-weight:800}
 @media print{header,.noprint{display:none}body{background:#fff;color:#000}}
 </style></head><body>
-<header><b>🏏 Scorer</b><button onclick="go('setup')">New</button><button onclick="go('hist')">History</button><button onclick="pdf()">PDF</button><button id="gb" onclick="grp()">☁</button></header>
+<header><b>🏏 Scorer</b><button id="nb" onclick="go('setup')">New</button><button onclick="go('hist')">History</button><button onclick="pdf()">PDF</button><button id="gb" onclick="cm()">☁</button></header>
 <main id="app"></main><div id="dlg"></div>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 /*ENGINE*/
 const CFG={wd:2,nb:2,wkt:5};
@@ -73,25 +73,34 @@ const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&'
 let S={ms:[],cur:null,view:'setup',tab:'score',mode:'',fix:false,wk:null,sp:null,cnt:1,fmt:11};
 try{const d=JSON.parse(localStorage.getItem('icm1')||'null');if(d){S.ms=d.ms||[];S.cur=d.cur;S.view=S.cur?'live':'setup'}}catch(e){}
 const FB={apiKey:"AIzaSyC0zw-IBQTa6VM-LH0VKB7glG7uqg3TfzU",authDomain:"cricket-scorer-cb941.firebaseapp.com",projectId:"cricket-scorer-cb941",storageBucket:"cricket-scorer-cb941.firebasestorage.app",messagingSenderId:"160375874730",appId:"1:160375874730:web:54b0a762b2f433911e9cd3"};
-let DB=null,G='',UN=null,LP={},ST='';
+let DB=null,G='',UN=null,LP={},ST='',ED=false,SY=false,AU=null;const ADMIN='scorer@cricket-scorer.app',VL=/v=1/.test(location.hash),RO=()=>!!(DB&&G&&!ED);
 try{G=localStorage.getItem('icmg')||'';firebase.initializeApp(FB);DB=firebase.firestore()}catch(e){}
+try{const hm=location.hash.match(/g=([a-z0-9_-]+)/i);if(hm){const g=hm[1].toLowerCase();if(g!=G){if(G)S.ms=[];G=g;localStorage.setItem('icmg',G)}}}catch(e){}
+try{AU=firebase.auth();AU.onAuthStateChanged(u=>{ED=!!(u&&u.email==ADMIN);hd();if(ED&&SY)push(true);render()})}catch(e){}
 const col=()=>DB.collection('groups').doc(G).collection('matches');
 const lsave=()=>{try{localStorage.setItem('icm1',JSON.stringify({ms:S.ms,cur:S.cur}))}catch(e){}};
 const save=()=>{lsave();push()};
-function hd(){const b=$('#gb');if(b)b.textContent='☁ '+(G||'Set group')+(ST?' ⚠':'')}
-function push(all){if(!DB||!G)return;(all?S.ms:[M()]).forEach(m=>{if(!m)return;const j=JSON.stringify(m);if(LP[m.id]===j)return;LP[m.id]=j;col().doc(String(m.id)).set({j,ts:Date.now()}).catch(()=>{ST='err';hd()})})}
-function sub(){if(UN)UN();UN=null;if(!DB||!G)return;let first=true;
+function hd(){const b=$('#gb'),n=$('#nb');if(b)b.textContent='☁ '+(G||'Set group')+(G&&DB?(ED?' ✎':' 👁'):'')+(ST?' ⚠':'');if(n)n.style.display=RO()?'none':''}
+function push(all){if(!DB||!G||!ED)return;(all?S.ms:[M()]).forEach(m=>{if(!m)return;const j=JSON.stringify(m);if(LP[m.id]===j)return;LP[m.id]=j;col().doc(String(m.id)).set({j,ts:Date.now()}).catch(()=>{ST='err';hd()})})}
+function sub(){if(UN)UN();UN=null;if(!DB||!G)return;let first=true;SY=false;
  UN=col().onSnapshot(sn=>{ST='';
   sn.docChanges().forEach(ch=>{const id=+ch.doc.id;
    if(ch.type=='removed'){S.ms=S.ms.filter(x=>x.id!=id);delete LP[id];if(S.cur==id){S.cur=null;S.view='hist'}return}
    if(ch.doc.metadata.hasPendingWrites)return;
    const j=ch.doc.data().j,m=JSON.parse(j),i=S.ms.findIndex(x=>x.id==id);LP[id]=j;if(i<0)S.ms.push(m);else S.ms[i]=m});
-  S.ms.sort((a,b)=>b.id-a.id);if(first){first=false;push(true)}lsave();hd();render()},()=>{ST='err';hd()})}
+  S.ms.sort((a,b)=>b.id-a.id);if(first){first=false;SY=true;if(VL&&!ED){const l=S.ms.find(x=>!x.done);if(l){S.cur=l.id;S.view='live';S.tab='score'}}if(ED)push(true)}lsave();hd();render()},()=>{ST='err';hd()})}
+function cm(){const vl=location.origin+location.pathname+'#g='+G+'&v=1';
+$('#dlg').innerHTML=`<div class="modal"><div class="card"><h3>Sharing &amp; access</h3><p class="mu">Group: <b>${esc(G||'not set')}</b> · You are: <b>${!G||!DB?'local only':ED?'a scorer (can edit)':'a viewer (read-only)'}</b></p>
+<button class="btn" style="width:100%;margin-bottom:8px" onclick="grp()">Set / change group code</button>
+${G&&DB?`<p class="mu" style="margin:8px 0 4px">Viewer link (read-only, share with everyone):</p><input readonly value="${esc(vl)}" onfocus="this.select()"><button class="btn" style="width:100%;margin:8px 0" onclick="cp()">Copy viewer link</button>${ED?'<button class="btn" style="width:100%;margin-bottom:8px" onclick="AU.signOut();dx()">Log out of scorer access</button>':'<button class="btn pri" style="width:100%;margin-bottom:8px" onclick="li()">Scorer login (edit code)</button>'}`:''}
+<button class="btn" style="width:100%" onclick="dx()">Close</button></div></div>`}
+function cp(){const vl=location.origin+location.pathname+'#g='+G+'&v=1';try{navigator.clipboard.writeText(vl).then(()=>dlg('Viewer link copied'),()=>dlg(vl))}catch(e){dlg(vl)}}
+function li(){dlg('Enter the scorer edit code',v=>{AU.signInWithEmailAndPassword(ADMIN,v||'').then(()=>dlg('Scorer access enabled. You can now edit.')).catch(()=>dlg('Wrong code, or scorer sign-in is not set up in Firebase.'))},'')}
 function grp(){dlg('Group code: everyone using the same code shares the same matches. Keep it private.',v=>{v=(v||'').toLowerCase().replace(/[^a-z0-9_-]/g,'');if(v.length<4)return dlg('Use at least 4 letters or numbers');
  if(G&&G!=v){S.ms=[];S.cur=null;S.view='hist';LP={}}G=v;try{localStorage.setItem('icmg',G)}catch(e){}hd();sub();render()},G)}
 const M=()=>S.ms.find(x=>x.id==S.cur);
 function go(v){S.view=v;if(v=='setup')S.cur=null;S.fix=false;save();render()}
-function start(){
+function start(){if(RO())return;
  const f=S.fmt,mk=i=>{const nm=($('#n'+i).value.trim()||'Team '+'AB'[i]);const raw=$('#p'+i).value.split('\n').map(x=>x.trim()).filter(Boolean);
   return{name:nm,pl:Array.from({length:f},(_,k)=>raw[k]||'Player '+(k+1))}};
  const t=[mk(0),mk(1)],fb=+$('#fb').value;
@@ -183,19 +192,20 @@ function summ(m){
  return m.teams.map((t,ti)=>{const rows=t.players.map((p,k)=>{const x=T[ti][k];return{p,...x,c:x.r+x.w*W-x.g-x.o*W}}),tot=rows.reduce((a,x)=>a+x.c,0);rows.sort((a,b)=>b.c-a.c);
   return`<div class="card"><h3>${esc(t.name)} — player contribution (${tot})</h3><table><tr><th>Player</th><th>Runs</th><th>Wkts</th><th>Given</th><th>Out</th><th>Ct</th><th>RO</th><th>St</th><th>Contrib</th></tr>${rows.map(x=>`<tr><td>${esc(x.p)}</td><td>${x.r}</td><td>${x.w}</td><td>${x.g}</td><td>${x.o}</td><td>${x.ct}</td><td>${x.ro}</td><td>${x.st}</td><td><b>${x.c}</b></td></tr>`).join('')}</table><p class="mu">Contribution = runs scored + ${W}×bowling wickets − runs given − ${W}×times out. Run outs are not credited to the bowler.</p></div>`}).join('')}
 function render(){
- const A=$('#app'),m=M();
- if(S.view=='hist'){A.innerHTML=`<h3>Match history</h3>`+(S.ms.map(x=>{const d=x.done;return`<div class="card"><b>${esc(x.teams[0].name)} v ${esc(x.teams[1].name)}</b><div class="mu">${x.date} · ${x.fmt} players · ${d?esc(result(x)):'In progress (innings '+(x.ci+1)+')'}</div><div class="row" style="margin-top:8px"><button class="btn" onclick="openM(${x.id},'${d?'res':'live'}')">${d?'View result':'Resume'}</button><button class="btn" onclick="pdf(${x.id})">PDF</button><button class="btn bad" onclick="delMatch(${x.id})">Delete</button></div></div>`}).join('')||'<p class="mu">No matches yet.</p>');return}
+ const A=$('#app'),m=M();if(RO()&&S.view=='setup')S.view='hist';
+ if(S.view=='hist'){A.innerHTML=`<h3>Match history</h3>`+(S.ms.map(x=>{const d=x.done;return`<div class="card"><b>${esc(x.teams[0].name)} v ${esc(x.teams[1].name)}</b><div class="mu">${x.date} · ${x.fmt} players · ${d?esc(result(x)):'In progress (innings '+(x.ci+1)+')'}</div><div class="row" style="margin-top:8px"><button class="btn" onclick="openM(${x.id},'${d?'res':'live'}')">${d?'View result':RO()?'Watch live':'Resume'}</button><button class="btn" onclick="pdf(${x.id})">PDF</button>${RO()?'':`<button class="btn bad" onclick="delMatch(${x.id})">Delete</button>`}</div></div>`}).join('')||'<p class="mu">No matches yet.</p>');return}
  if(S.view=='setup'||!m){A.innerHTML=`<div class="card"><h3>Match setup</h3><div class="row"><button class="btn ${S.fmt==10?'on':''}" onclick="S.fmt=10;render()">10 players · 20 overs</button><button class="btn ${S.fmt==11?'on':''}" onclick="S.fmt=11;render()">11 players · 22 overs</button></div></div>
  <div class="grid2">${[0,1].map(i=>`<div class="card"><h3>Team ${'AB'[i]}</h3><input id="n${i}" placeholder="Team ${'AB'[i]} name"><p class="mu" style="margin:8px 0 4px">Players, one per line (batting order, pairs: 1-2, 3-4…). Optional.</p><textarea id="p${i}" rows="${S.fmt+1}"></textarea></div>`).join('')}</div>
  <div class="card"><h3>Batting first</h3><select id="fb"><option value="0">Team A</option><option value="1">Team B</option></select><p class="mu">Scoring: runs face value, wide +2, no-ball +2, wicket −5. You pick each batting pair (4 overs${S.fmt==11?') and one single batter (2 overs, any time)':')'} and a new bowler every over (no back-to-back, max 2 overs each).</p><button class="btn pri" style="width:100%" onclick="start()">Start match</button></div>`;
  [0,1].forEach(i=>{});return}
- if(S.view=='res'||m.done){A.innerHTML=`<div class="sb"><small>RESULT</small><div class="res">${esc(result(m))}</div><div class="mu" style="color:#fff9">${[0,1].map(i=>esc(m.teams[m.inn[i].bat].name)+' '+compute(m,i).net).join(' · ')}</div></div>${card(m,0)}${card(m,1)}${summ(m)}<div class="row noprint"><button class="btn" onclick="window.print()">Print</button><button class="btn" onclick="reopen()">Back to scoring</button><button class="btn pri" onclick="go('setup')">New match</button></div>`;return}
+ if(S.view=='res'||m.done){A.innerHTML=`<div class="sb"><small>RESULT</small><div class="res">${esc(result(m))}</div><div class="mu" style="color:#fff9">${[0,1].map(i=>esc(m.teams[m.inn[i].bat].name)+' '+compute(m,i).net).join(' · ')}</div></div>${card(m,0)}${card(m,1)}${summ(m)}<div class="row noprint"><button class="btn" onclick="window.print()">Print</button>${RO()?'':`<button class="btn" onclick="reopen()">Back to scoring</button><button class="btn pri" onclick="go('setup')">New match</button>`}</div>`;return}
  m.inn.forEach(x=>x.ovb=x.ovb||{});const i=m.ci,n=m.inn[i],o=compute(m,i),bt=m.teams[n.bat],bw=m.teams[n.bowl],mx=MAXO(m)*6;
  let tg='';if(i==1){const t=compute(m,0).net+1,need=t-o.net;tg=`<div style="margin-top:8px">Target <b>${t}</b> · need <b>${Math.max(need,0)}</b> net from ${Math.floor((mx-o.legal)/6)}.${(mx-o.legal)%6>0?(mx-o.legal)%6:0} overs left</div>`}
  else tg='';
  const tabs=`<div class="tabs"><button class="btn ${S.tab=='score'?'on':''}" onclick="S.tab='score';render()">Scoring</button><button class="btn ${S.tab=='card'?'on':''}" onclick="S.tab='card';render()">Scorecard</button></div>`;
  let h=`<div class="sb"><div class="row sp"><small>INNINGS ${i+1} · ${esc(bt.name)} v ${esc(bw.name)}</small><small>${ovs(o.legal)} / ${MAXO(m)} ov</small></div><div class="row sp" style="margin-top:6px"><div><div class="big">${o.net}</div><small>${o.runs} runs − ${o.wk} wkts × ${m.cfg.wkt}</small></div><div style="text-align:right"><small>Over ${Math.min(o.ov+1,MAXO(m))}</small><div style="font-size:22px;font-weight:700">${o.ball}/6</div></div></div>${tg}</div>${tabs}`;
  if(S.tab=='card')h+=card(m,0)+(m.inn[1]?card(m,1):'')+summ(m);
+ else if(RO()){h+=`<div class="card"><h3>At the crease</h3>${(o.sp?o.sp.pl:[]).map(k=>{const b=o.bat[k]||{r:0,b:0,w:0};return`<div class="row sp"><span>${k==o.bt?'🏏 ':'&nbsp;&nbsp;&nbsp;'}<b>${esc(bt.players[k])}</b></span><span class="mu">${b.r} (${b.b})</span></div>`}).join('')}<div class="mu" style="margin-top:6px">Bowler: <b>${n.ovb[o.ov]!=null?esc(bw.players[n.ovb[o.ov]]):'—'}</b></div><div style="margin-top:8px">${o.cur.map(l=>`<span class="ball ${l=='W'?'W':l.length>1&&l[0]!='•'?'x':''}">${l}</span>`).join('')}</div>${o.done?'<p><b>Innings complete</b></p>':''}</div>`}
  else if(o.done){h+=`<div class="card"><h3>Innings ${i+1} complete</h3><p>${esc(bt.name)} finished on <b>${o.net}</b> net.</p><div class="row"><button class="btn pri" onclick="advance()">${i==0?'Start 2nd innings':'Finish match'}</button><button class="btn" onclick="undo()">Undo last ball</button></div></div>`}
  else{
   const pairNames=o.sp?o.sp.pl:[];
@@ -205,7 +215,7 @@ function render(){
  ${S.mode?`<div class="row" style="margin-bottom:8px"><button class="btn ${S.cnt?'on':''}" style="flex:1" onclick="S.cnt=1;render()">Counted: +${m.cfg.wd}, ball counts</button><button class="btn ${S.cnt?'':'on'}" style="flex:1" onclick="S.cnt=0;render()">Not counted: +1, re-bowl</button></div>`:''}<div class="mu" style="margin-bottom:6px">${S.mode?'Extra selected — tap additional runs (0 for none)':'Tap runs off the bat'}</div><div class="row">${[0,1,2,3,4,5,6].map(r=>`<button class="btn run" onclick="press(${r})">${r}</button>`).join('')}<button class="btn run w" onclick="S.wk={how:'b',os:0,fl:0};render()">Wkt −${m.cfg.wkt}</button></div></div>
  <div class="row"><button class="btn" onclick="add({t:'sw'})">⇄ Swap strike</button><button class="btn" onclick="undo()">↶ Undo</button><button class="btn" onclick="S.fix=true;render()">✎ Correct</button><button class="btn bad" onclick="endInn()">End innings</button></div>`}
  if(S.fix){const ev=n.ev,s=Math.max(0,ev.length-12);h+=`<div class="modal"><div class="card"><h3>Correct score — recent balls</h3>${ev.slice(s).map((e,k)=>{const j=s+k,l=e.t=='sw'?'Swap strike':e.t=='w'?'Wicket ('+(e.how||'b')+')':e.t=='r'?e.r+' run'+(e.r==1?'':'s'):(e.t=='wd'?'Wide':'No ball')+(e.r?' +'+e.r:'');return`<div class="row sp" style="padding:4px 0;border-bottom:1px solid var(--bd)"><span>#${j+1} ${l} <span class="mu">· ${esc(bw.players[e.bw])}</span></span><span>${e.t=='sw'?'':`<button class="btn" onclick="edit(${j})">Edit</button>`} <button class="btn bad" onclick="del(${j})">Del</button></span></div>`}).join('')||'<p class="mu">No balls yet.</p>'}<button class="btn pri" style="width:100%;margin-top:10px" onclick="S.fix=false;render()">Done</button></div></div>`}
- if(!o.done&&!S.wk&&!S.fix){
+ if(!o.done&&!S.wk&&!S.fix&&!RO()){
   if(!o.sp){const q=S.sp||(S.sp={k:'pair',sel:[]}),used=(n.sp||[]).flatMap(x=>x.pl),R=MAXO(m)-o.ov,su=(n.sp||[]).some(x=>x.pl.length==1),
    pa=R>=4&&(m.fmt==10||su||R-4>=2),sa=m.fmt==11&&!su&&R>=2;
    if(q.k=='pair'&&!pa)q.k='single';if(q.k=='single'&&!sa)q.k='pair';const need=q.k=='pair'?2:1;
