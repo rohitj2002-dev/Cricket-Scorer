@@ -146,10 +146,10 @@ function pdfLines(m){
   for(const k in o.bowl){const b=o.bowl[k];L.push(pd(nm(bw,k),24)+rp(ovs(b.b),5)+rp(b.r,5)+rp(b.w,4)+rp(b.wd,4)+rp(b.nb,4));const x=T[bw][k];x.w+=b.w;x.g+=b.r}
   const fk=Object.keys(o.fld);if(fk.length){L.push('',pd('FIELDING',24)+rp('Ct',4)+rp('RO',4)+rp('St',4));fk.forEach(k=>{const f=o.fld[k];L.push(pd(nm(bw,k),24)+rp(f.ct,4)+rp(f.ro,4)+rp(f.st,4));const x=T[bw][k];x.ct+=f.ct;x.ro+=f.ro;x.st+=f.st})}
   L.push('','Extras: wides '+o.wd+', no-balls '+o.nb+' (total '+(o.wd+o.nb)+')','')});
- m.teams.forEach((t,ti)=>{const rows=t.players.map((p,k)=>({p,...T[ti][k],c:T[ti][k].r+T[ti][k].w*W-T[ti][k].g-T[ti][k].o*W}));rows.sort((a,b)=>b.c-a.c);
-  L.push('=== '+t.name+' PLAYER CONTRIBUTION (total '+rows.reduce((a,x)=>a+x.c,0)+') ===',pd('PLAYER',18)+['Runs','Wkts','Given','Out','Ct','RO','St','Contrib'].map(h=>rp(h,8)).join(''));
-  rows.forEach(x=>L.push(pd(x.p,18)+[x.r,x.w,x.g,x.o,x.ct,x.ro,x.st,x.c].map(v=>rp(v,8)).join('')));
-  L.push('(runs + '+W+' x bowling wkts - runs given - '+W+' x times out; run outs not credited to bowler)','')});
+ const RW=m.teams.map((t,ti)=>{const rows=t.players.map((p,k)=>({p,...T[ti][k],c:T[ti][k].r+(T[ti][k].w+T[ti][k].ro)*W-T[ti][k].g-T[ti][k].o*W}));rows.sort((a,b)=>b.c-a.c);return rows});L.push('=== BEST PLAYERS ===');RW.forEach((rows,ti)=>{const b=rows.filter(x=>x.c==rows[0].c);L.push(b.slice(0,3).map(x=>x.p).join(' & ')+(b.length>3?' +'+(b.length-3)+' more':'')+' ('+m.teams[ti].name+') - contribution '+rows[0].c)});L.push('');RW.forEach((rows,ti)=>{const t=m.teams[ti];
+  L.push('=== '+t.name+' PLAYER CONTRIBUTION (total '+rows.reduce((a,x)=>a+x.c,0)+') ===',pd('PLAYER',18)+['Runs','Wkts','Given','Out','RO','Contrib'].map(h=>rp(h,8)).join(''));
+  rows.forEach(x=>L.push(pd(x.p,18)+[x.r,x.w,x.g,x.o,x.ro,x.c].map(v=>rp(v,8)).join('')));
+  L.push('(runs + '+W+' x (bowling wkts + run outs) - runs given - '+W+' x times out)','')});
  return L}
 function mkpdf(lines){
  const per=62,pg=[];for(let i=0;i<lines.length;i+=per)pg.push(lines.slice(i,i+per));
@@ -189,8 +189,10 @@ function summ(m){
   for(const k in o.bat){const x=T[n.bat][k],b=o.bat[k];x.r+=b.r;x.o+=b.w}
   for(const k in o.bowl){const x=T[n.bowl][k],b=o.bowl[k];x.w+=b.w;x.g+=b.r}
   for(const k in o.fld){const x=T[n.bowl][k],f=o.fld[k];x.ct+=f.ct;x.ro+=f.ro;x.st+=f.st}});
- return m.teams.map((t,ti)=>{const rows=t.players.map((p,k)=>{const x=T[ti][k];return{p,...x,c:x.r+x.w*W-x.g-x.o*W}}),tot=rows.reduce((a,x)=>a+x.c,0);rows.sort((a,b)=>b.c-a.c);
-  return`<div class="card"><h3>${esc(t.name)} — player contribution (${tot})</h3><table><tr><th>Player</th><th>Runs</th><th>Wkts</th><th>Given</th><th>Out</th><th>Ct</th><th>RO</th><th>St</th><th>Contrib</th></tr>${rows.map(x=>`<tr><td>${esc(x.p)}</td><td>${x.r}</td><td>${x.w}</td><td>${x.g}</td><td>${x.o}</td><td>${x.ct}</td><td>${x.ro}</td><td>${x.st}</td><td><b>${x.c}</b></td></tr>`).join('')}</table><p class="mu">Contribution = runs scored + ${W}×bowling wickets − runs given − ${W}×times out. Run outs are not credited to the bowler.</p></div>`}).join('')}
+ const R=m.teams.map((t,ti)=>{const rows=t.players.map((p,k)=>{const x=T[ti][k];return{p,...x,c:x.r+(x.w+x.ro)*W-x.g-x.o*W}}),tot=rows.reduce((a,x)=>a+x.c,0);rows.sort((a,b)=>b.c-a.c);return{t,rows,tot}});
+ const best=`<div class="sb"><small>BEST PLAYERS</small>${R.map(({t,rows})=>{const b=rows.filter(x=>x.c==rows[0].c);return`<div style="margin-top:8px"><b>🏅 ${esc(b.slice(0,3).map(x=>x.p).join(' & ')+(b.length>3?' +'+(b.length-3)+' more':''))}</b> <span style="opacity:.75">(${esc(t.name)})</span> — <b style="font-size:20px">${rows[0].c}</b> contribution</div>`}).join('')}</div>`;
+ return best+R.map(({t,rows,tot})=>{
+  return`<div class="card"><h3>${esc(t.name)} — player contribution (${tot})</h3><table><tr><th>Player</th><th>Runs</th><th>Wkts</th><th>Given</th><th>Out</th><th>RO</th><th>Contrib</th></tr>${rows.map(x=>`<tr><td>${esc(x.p)}</td><td>${x.r}</td><td>${x.w}</td><td>${x.g}</td><td>${x.o}</td><td>${x.ro}</td><td><b>${x.c}</b></td></tr>`).join('')}</table><p class="mu">Contribution = runs scored + ${W}×(bowling wickets + run outs) − runs given − ${W}×times out.</p></div>`}).join('')}
 function render(){
  const A=$('#app'),m=M();if(RO()&&S.view=='setup')S.view='hist';
  if(S.view=='hist'){A.innerHTML=`<h3>Match history</h3>`+(S.ms.map(x=>{const d=x.done;return`<div class="card"><b>${esc(x.teams[0].name)} v ${esc(x.teams[1].name)}</b><div class="mu">${x.date} · ${x.fmt} players · ${d?esc(result(x)):'In progress (innings '+(x.ci+1)+')'}</div><div class="row" style="margin-top:8px"><button class="btn" onclick="openM(${x.id},'${d?'res':'live'}')">${d?'View result':RO()?'Watch live':'Resume'}</button><button class="btn" onclick="pdf(${x.id})">PDF</button>${RO()?'':`<button class="btn bad" onclick="delMatch(${x.id})">Delete</button>`}</div></div>`}).join('')||'<p class="mu">No matches yet.</p>');return}
