@@ -114,7 +114,7 @@ function spTog(k){const q=S.sp,need=q.k=='pair'?2:1;q.sel=q.sel.includes(k)?q.se
 function spOk(){const m=M(),n=m.inn[m.ci],o=compute(m,m.ci);n.sp.push({ov:o.ov,pl:S.sp.sel});S.sp=null;save();render()}
 function pickBw(k){const m=M(),n=m.inn[m.ci],o=compute(m,m.ci);n.ovb[o.ov]=k;save();render()}
 function chBw(){const m=M(),n=m.inn[m.ci];delete n.ovb[compute(m,m.ci).ov];save();render()}
-function wkOk(){const w=S.wk;S.wk=null;add({t:'w',how:w.how,os:w.os||0,fl:['c','st','ro'].includes(w.how)?w.fl:null})}
+function wkOk(){const w=S.wk;S.wk=null;add({t:'w',how:w.how,os:w.os||0,fl:['c','st','ro'].includes(w.how)?(w.fl??0):null})}
 function undo(){const m=M(),n=m.inn[m.ci];if(!n.ev.length)return;n.ev.pop();n.done=false;save();render()}
 function endInn(){dlg('End this innings now?',()=>{M().inn[M().ci].done=true;save();render()})}
 function advance(){const m=M();if(m.ci==0){const f=m.inn[0];m.inn.push({bat:f.bowl,bowl:f.bat,ev:[],sp:[],ovb:{},done:false});m.ci=1}else m.done=true;S.tab='score';save();render()}
@@ -225,7 +225,7 @@ function render(){
   else if(n.ovb[o.ov]==null){const pv=n.ovb[o.ov-1],cnt=k=>Object.values(n.ovb).filter(x=>x==k).length,all=bw.players.map((p,k)=>k);let el=all.filter(k=>k!=pv&&cnt(k)<2);if(!el.length)el=all.filter(k=>k!=pv);
    h+=`<div class="modal"><div class="card"><h3>Select bowler — over ${o.ov+1}</h3><div class="row">${all.map(k=>`<button class="btn" ${el.includes(k)?`onclick="pickBw(${k})"`:'disabled style="opacity:.45"'}>${esc(bw.players[k])} <b>(${cnt(k)} ${cnt(k)==1?'over':'overs'})</b></button>`).join('')}</div></div></div>`}}
  if(S.wk&&o.sp){const w=S.wk,H=[['b','Bowled'],['c','Caught'],['lb','LBW'],['st','Stumped'],['ro','Run out']],pn=o.sp.pl;
-  h+=`<div class="modal"><div class="card"><h3>How was the wicket (−${m.cfg.wkt})?</h3><div class="row">${H.map(([k,l])=>`<button class="btn ${w.how==k?'on':''}" onclick="S.wk.how='${k}';S.wk.fl=${n.bw};render()">${l}</button>`).join('')}</div>
+  h+=`<div class="modal"><div class="card"><h3>How was the wicket (−${m.cfg.wkt})?</h3><div class="row">${H.map(([k,l])=>`<button class="btn ${w.how==k?'on':''}" onclick="S.wk.how='${k}';S.wk.fl=${k=='c'?(n.ovb[o.ov]??0):0};S.wk.os=0;render()">${l}</button>`).join('')}</div>
   ${w.how=='ro'?`<p class="mu">Who is out?</p><select onchange="S.wk.os=+this.value">${pn.map((k,x)=>`<option value="${x}" ${w.os==x?'selected':''}>${esc(bt.players[k])}</option>`).join('')}</select>`:''}
   ${['c','st','ro'].includes(w.how)?`<p class="mu">${{c:'Caught by',st:'Stumped by',ro:'Run out by (fielder involved)'}[w.how]}</p><select onchange="S.wk.fl=+this.value">${bw.players.map((p,k)=>`<option value="${k}" ${w.fl==k?'selected':''}>${esc(p)}</option>`).join('')}</select>`:''}
   <div class="row" style="margin-top:12px"><button class="btn" onclick="S.wk=null;render()">Cancel</button><button class="btn w" style="flex:1" onclick="wkOk()">Confirm wicket</button></div></div></div>`}
