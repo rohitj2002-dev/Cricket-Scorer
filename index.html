@@ -138,8 +138,8 @@ function pdfLines(m){
  L.push('INDOOR CRICKET SCORECARD',m.teams[0].name+' v '+m.teams[1].name,m.date+' | '+m.fmt+' players | '+MAXO(m)+' overs','',m.done?'RESULT: '+result(m):'IN PROGRESS - innings '+(m.ci+1),'');
  m.inn.forEach((n,i)=>{const o=compute(m,i),bt=n.bat,bw=n.bowl;
   L.push('=== INNINGS '+(i+1)+': '+m.teams[bt].name+' - NET '+o.net+' ('+o.runs+' runs - '+o.wk+' wkts x '+W+') '+ovs(o.legal)+' ov ===','');
-  L.push(pd('BATTERS',18)+rp('R',5)+rp('B',5)+rp('Out',5)+rp('Net',6));
-  for(const k of Object.keys(o.bat).sort((a,b)=>a-b)){const b=o.bat[k];L.push(pd(nm(bt,k),18)+rp(b.r,5)+rp(b.b,5)+rp(b.w,5)+rp(b.r-b.w*W,6));L.push('    '+(b.d.map(d=>ds(n,d)).join('; ')||'not out'));const x=T[bt][k];x.r+=b.r;x.o+=b.w}
+  L.push(pd('BATTERS',18)+rp('Ct',4)+rp('RO',4)+rp('St',4)+rp('Bwd',4)+rp('R',5)+rp('B',5)+rp('Out',5)+rp('Net',6));
+  for(const k of Object.keys(o.bat).sort((a,b)=>a-b)){const b=o.bat[k];L.push(pd(nm(bt,k),18)+['c','ro','st','b'].map(h=>rp(b.d.filter(d=>d.h==h).length||'-',4)).join('')+rp(b.r,5)+rp(b.b,5)+rp(b.w,5)+rp(b.r-b.w*W,6));const x=T[bt][k];x.r+=b.r;x.o+=b.w}
   L.push('',pd('PAIRS / SPELLS',36)+rp('Ov',5)+rp('R',5)+rp('Out',5)+rp('Net',6));
   for(const k of Object.keys(o.pair).sort()){const p=o.pair[k];L.push(pd(((SPL(n)[k]||{}).pl||[]).map(x=>nm(bt,x)).join(' & '),36)+rp(ovs(p.b),5)+rp(p.r,5)+rp(p.w,5)+rp(p.r-p.w*W,6))}
   L.push('',pd('BOWLING ('+m.teams[bw].name+')',24)+rp('Ov',5)+rp('R',5)+rp('W',4)+rp('Wd',4)+rp('Nb',4));
@@ -173,12 +173,12 @@ async function pdf(id){const m=id?S.ms.find(x=>x.id==id):M();if(!m)return dlg('S
 const hw=(m,n,d)=>{const P=m.teams[n.bowl].players,f=esc(P[d.f]||'?'),b=esc(P[d.bw]||'?');return{b:'b '+b,c:'c '+f+' b '+b,lb:'lbw b '+b,st:'st '+f+' b '+b,ro:'run out ('+f+')'}[d.h]||''};
 function card(m,i){
  const o=compute(m,i),n=m.inn[i],bt=m.teams[n.bat],bw=m.teams[n.bowl],W=m.cfg.wkt;
- const bat=Object.keys(o.bat).sort((a,b)=>a-b).map(k=>{const b=o.bat[k];return`<tr><td>${esc(bt.players[k])}<div class="mu" style="font-size:12px">${b.d.map(d=>hw(m,n,d)).join('; ')||'not out'}</div></td><td>${b.r}</td><td>${b.b}</td><td>${b.w}</td><td><b>${b.r-b.w*W}</b></td></tr>`}).join('');
+ const bat=Object.keys(o.bat).sort((a,b)=>a-b).map(k=>{const b=o.bat[k];return`<tr><td>${esc(bt.players[k])}</td>${['c','ro','st','b'].map(h=>`<td>${b.d.filter(d=>d.h==h).length||'-'}</td>`).join('')}<td>${b.r}</td><td>${b.b}</td><td>${b.w}</td><td><b>${b.r-b.w*W}</b></td></tr>`}).join('');
  const pr=Object.keys(o.pair).sort().map(k=>{const p=o.pair[k],a=((SPL(n)[k]||{}).pl||[]).map(x=>esc(bt.players[x])).join(' & ');return`<tr><td>${a}</td><td>${ovs(p.b)}</td><td>${p.r}</td><td>${p.w}</td><td><b>${p.r-p.w*W}</b></td></tr>`}).join('');
  const bo=Object.keys(o.bowl).map(k=>{const b=o.bowl[k];return`<tr><td>${esc(bw.players[k])}</td><td>${ovs(b.b)}</td><td>${b.r}</td><td>${b.w}</td><td>${b.wd}</td><td>${b.nb}</td></tr>`}).join('');
  const fl=Object.keys(o.fld).map(k=>{const f=o.fld[k];return`<tr><td>${esc(bw.players[k])}</td><td>${f.ct}</td><td>${f.ro}</td><td>${f.st}</td></tr>`}).join('');
  return`<div class="card"><h3>${esc(bt.name)} batting — ${o.net} net</h3><div class="mu">${o.runs} runs − ${o.wk}×${W} wickets · ${ovs(o.legal)} overs</div>
- <h3 style="margin-top:12px">Batters</h3><table><tr><th>Name</th><th>R</th><th>B</th><th>Out</th><th>Net</th></tr>${bat||'<tr><td colspan=5>—</td></tr>'}</table>
+ <h3 style="margin-top:12px">Batters</h3><table><tr><th>Name</th><th>Ct</th><th>RO</th><th>St</th><th>Bwd</th><th>R</th><th>B</th><th>Out</th><th>Net</th></tr>${bat||'<tr><td colspan=9>—</td></tr>'}</table>
  <h3 style="margin-top:12px">Pairs</h3><table><tr><th>Pair</th><th>Ov</th><th>R</th><th>Out</th><th>Net</th></tr>${pr||'<tr><td colspan=5>—</td></tr>'}</table>
  <h3 style="margin-top:12px">Bowling (${esc(bw.name)})</h3><table><tr><th>Name</th><th>Ov</th><th>R</th><th>W</th><th>Wd</th><th>Nb</th></tr>${bo||'<tr><td colspan=6>—</td></tr>'}</table>
  <h3 style="margin-top:12px">Fielding</h3><table><tr><th>Name</th><th>Catches</th><th>Run outs</th><th>Stumpings</th></tr>${fl||'<tr><td colspan=4>—</td></tr>'}</table>
