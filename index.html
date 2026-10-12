@@ -131,41 +131,67 @@ function delMatch(id){dlg('Delete this match? This cannot be undone.',()=>{if(DB
 function openM(id,v){S.cur=id;S.view=v;S.tab='score';save();render()}
 const ovs=b=>Math.floor(b/6)+'.'+b%6;
 /*PDF*/
-const pd=(s,n)=>String(s).slice(0,n).padEnd(n),rp=(s,n)=>String(s).padStart(n);
-function pdfLines(m){
- const L=[],W=m.cfg.wkt,nm=(t,k)=>m.teams[t].players[k]||'?',T=m.teams.map(t=>t.players.map(()=>({r:0,o:0,w:0,g:0,ct:0,ro:0,st:0})));
- const ds=(n,d)=>{const f=nm(n.bowl,d.f),b=nm(n.bowl,d.bw);return{b:'b '+b,c:'c '+f+' b '+b,lb:'lbw b '+b,st:'st '+f+' b '+b,ro:'run out ('+f+')'}[d.h]||''};
- L.push('INDOOR CRICKET SCORECARD',m.teams[0].name+' v '+m.teams[1].name,m.date+' | '+m.fmt+' players | '+MAXO(m)+' overs','',m.done?'RESULT: '+result(m):'IN PROGRESS - innings '+(m.ci+1),'');
- m.inn.forEach((n,i)=>{const o=compute(m,i),bt=n.bat,bw=n.bowl;
-  L.push('=== INNINGS '+(i+1)+': '+m.teams[bt].name+' - NET '+o.net+' ('+o.runs+' runs - '+o.wk+' wkts x '+W+') '+ovs(o.legal)+' ov ===','');
-  L.push(pd('BATTERS',18)+rp('Ct',4)+rp('RO',4)+rp('St',4)+rp('Bwd',4)+rp('R',5)+rp('B',5)+rp('Out',5)+rp('Net',6)+rp('SR',7));
-  for(const k of Object.keys(o.bat).sort((a,b)=>a-b)){const b=o.bat[k];L.push(pd(nm(bt,k),18)+['c','ro','st','b'].map(h=>rp(b.d.filter(d=>d.h==h).length||'-',4)).join('')+rp(b.r,5)+rp(b.b,5)+rp(b.w,5)+rp(b.r-b.w*W,6)+rp((b.b?(b.r/b.b*100).toFixed(1):'-'),7));const x=T[bt][k];x.r+=b.r;x.o+=b.w}
-  L.push('',pd('PAIRS / SPELLS',36)+rp('Ov',5)+rp('R',5)+rp('Out',5)+rp('Net',6));
-  for(const k of Object.keys(o.pair).sort()){const p=o.pair[k];L.push(pd(((SPL(n)[k]||{}).pl||[]).map(x=>nm(bt,x)).join(' & '),36)+rp(ovs(p.b),5)+rp(p.r,5)+rp(p.w,5)+rp(p.r-p.w*W,6))}
-  L.push('',pd('BOWLING ('+m.teams[bw].name+')',24)+rp('Ov',5)+rp('R',5)+rp('W',4)+rp('Wd',4)+rp('Nb',4)+rp('Eco',6));
-  for(const k in o.bowl){const b=o.bowl[k];L.push(pd(nm(bw,k),24)+rp(ovs(b.b),5)+rp(b.r,5)+rp(b.w,4)+rp(b.wd,4)+rp(b.nb,4)+rp((b.b?(b.r*6/b.b).toFixed(2):'-'),6));const x=T[bw][k];x.w+=b.w;x.g+=b.r}
-  const fk=Object.keys(o.fld);if(fk.length){L.push('',pd('FIELDING',24)+rp('Ct',4)+rp('RO',4)+rp('St',4));fk.forEach(k=>{const f=o.fld[k];L.push(pd(nm(bw,k),24)+rp(f.ct,4)+rp(f.ro,4)+rp(f.st,4));const x=T[bw][k];x.ct+=f.ct;x.ro+=f.ro;x.st+=f.st})}
-  L.push('','Extras: wides '+o.wd+', no-balls '+o.nb+' (total '+(o.wd+o.nb)+')','')});
- const RW=m.teams.map((t,ti)=>{const rows=t.players.map((p,k)=>({p,...T[ti][k],c:T[ti][k].r+(T[ti][k].w+T[ti][k].ro)*W-T[ti][k].g-T[ti][k].o*W}));rows.sort((a,b)=>b.c-a.c);return rows});L.push('=== BEST PLAYERS ===');RW.forEach((rows,ti)=>{const b=rows.filter(x=>x.c==rows[0].c);L.push(b.slice(0,3).map(x=>x.p).join(' & ')+(b.length>3?' +'+(b.length-3)+' more':'')+' ('+m.teams[ti].name+') - contribution '+rows[0].c)});L.push('');RW.forEach((rows,ti)=>{const t=m.teams[ti];
-  L.push('=== '+t.name+' PLAYER CONTRIBUTION (total '+rows.reduce((a,x)=>a+x.c,0)+') ===',pd('PLAYER',18)+['Runs','Wkts','Given','Out','RO','Contrib'].map(h=>rp(h,8)).join(''));
-  rows.forEach(x=>L.push(pd(x.p,18)+[x.r,x.w,x.g,x.o,x.ro,x.c].map(v=>rp(v,8)).join('')));
-  L.push('(runs + '+W+' x (bowling wkts + run outs) - runs given - '+W+' x times out)','')});
- return L}
-function mkpdf(lines){
- const per=62,pg=[];for(let i=0;i<lines.length;i+=per)pg.push(lines.slice(i,i+per));
- const enc=s=>s.replace(/[^\x20-\x7e]/g,c=>({'−':'-','•':'.','·':'-','—':'-','–':'-'}[c]||'?')).replace(/[\\()]/g,'\\$&'),o=[],F=3+pg.length*2;
- o[1]='<</Type/Catalog/Pages 2 0 R>>';o[2]='<</Type/Pages/Kids['+pg.map((_,i)=>(3+i*2)+' 0 R').join(' ')+']/Count '+pg.length+'>>';
- pg.forEach((q,i)=>{const c='BT /F1 9 Tf 12 TL 40 800 Td '+q.map(l=>'('+enc(l)+') Tj T*').join(' ')+' ET';
-  o[3+i*2]='<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents '+(4+i*2)+' 0 R/Resources<</Font<</F1 '+F+' 0 R>>>>>>';
-  o[4+i*2]='<</Length '+c.length+'>>\nstream\n'+c+'\nendstream'});
- o[F]='<</Type/Font/Subtype/Type1/BaseFont/Courier>>';
- let out='%PDF-1.4\n';const off=[];
- for(let i=1;i<o.length;i++){off[i]=out.length;out+=i+' 0 obj\n'+o[i]+'\nendobj\n'}
- const x=out.length;out+='xref\n0 '+o.length+'\n0000000000 65535 f \n'+off.slice(1).map(v=>String(v).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<</Size '+o.length+'/Root 1 0 R>>\nstartxref\n'+x+'\n%%EOF';
+const HW=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+function pdfBuild(m){
+ const W=595,H=842,M=34,TW=W-2*M,P=[[]],GR=[10,92,58],DK=[12,59,42],LT=[234,243,238],GD=[232,170,40],RD=[192,57,43],MU=[104,122,112],TX=[22,36,30],WH=[255,255,255];
+ let y=0,ci=0;
+ const col=c=>c.map(v=>(v/255).toFixed(3)).join(' '),enc=s=>String(s).replace(/[^\x20-\x7e]/g,c=>({'−':'-','·':'-','—':'-','–':'-'}[c]||'?')).replace(/[\\()]/g,'\\$&');
+ const tw=(s,z,b)=>{let w=0;for(const ch of s)w+=HW[ch.charCodeAt(0)-32]||556;return w*z/1000*(b?1.06:1)};
+ const rect=(x,t,w,h,c)=>P[ci].push(col(c)+' rg '+x.toFixed(1)+' '+(H-t-h).toFixed(1)+' '+w.toFixed(1)+' '+h.toFixed(1)+' re f');
+ const txt=(s,x,t,z,c,b,a)=>{s=enc(s);const w=tw(s,z,b);if(a=='r')x-=w;if(a=='c')x-=w/2;P[ci].push('BT /'+(b?'F2':'F1')+' '+z+' Tf '+col(c)+' rg '+x.toFixed(1)+' '+(H-t-z*.8).toFixed(1)+' Td ('+s+') Tj ET')};
+ const fit=(s,w,z,b)=>{s=String(s);while(s.length>1&&tw(s,z,b)>w)s=s.slice(0,-1);return s};
+ const pg=()=>{P.push([]);ci++;y=34},need=h=>{if(y+h>H-46)pg()};
+ const bar=(t,r)=>{need(70);rect(M,y,TW,26,GR);rect(M,y,5,26,GD);txt(t,M+14,y+8,11,WH,1);if(r!=null)txt(String(r),W-M-10,y+4,16,WH,1,'r');y+=26};
+ const lab=t=>{need(60);txt(t,M+2,y+4,8,GR,1);y+=15},sub=s=>{txt(s,M+2,y+5,8.5,MU);y+=18};
+ function table(cols,rows){const rh=16;need(rh*3);let x=M;const xs=cols.map(c=>{const v=x;x+=c[1];return v});
+  const hd=()=>{rect(M,y,TW,rh,DK);cols.forEach((c,i)=>txt(c[0],c[2]=='l'?xs[i]+6:xs[i]+c[1]-6,y+4.5,8,WH,1,c[2]));y+=rh};hd();
+  rows.forEach((r,i)=>{if(y+rh>H-46){pg();hd()}if(i%2==0)rect(M,y,TW,rh,LT);
+   cols.forEach((c,j)=>{const h=c[0],s=c[2]=='l'?fit(r[j],c[1]-12,8.5,0):String(r[j]),bd=['Net','Contrib','R'].includes(h),neg=(h=='Net'||h=='Contrib')&&/^-\d/.test(s);
+    txt(s,c[2]=='l'?xs[j]+6:xs[j]+c[1]-6,y+4.5,8.5,neg?RD:TX,bd,c[2])});y+=rh});
+  rect(M,y,TW,.8,GR);y+=12}
+ const nm=(t,k)=>m.teams[t].players[k]||'?',Wk=m.cfg.wkt,T=m.teams.map(t=>t.players.map(()=>({r:0,o:0,w:0,g:0,ct:0,ro:0,st:0}))),O=m.inn.map((n,i)=>compute(m,i));
+ rect(0,0,W,92,DK);rect(0,92,W,4,GD);
+ txt('INDOOR CRICKET  |  MATCH SCORECARD',M,24,8.5,GD,1);
+ txt(fit(m.teams[0].name+'  v  '+m.teams[1].name,TW,22,1),M,40,22,WH,1);
+ txt(m.date+'   |   '+m.fmt+' players a side   |   '+MAXO(m)+' overs',M,72,9,[190,215,203]);
+ y=112;rect(M,y,TW,76,LT);rect(M,y,5,76,GD);
+ txt(m.done?'RESULT':'MATCH IN PROGRESS',M+16,y+9,8,MU,1);
+ txt(fit(m.done?result(m):'Innings '+(m.ci+1)+' of 2',TW-30,15,1),M+16,y+21,15,TX,1);
+ O.forEach((o,i)=>{const n=m.inn[i],x=M+16+i*TW/2,t=m.teams[n.bat].name;txt(fit(t,TW/2-30,8.5,1),x,y+44,8.5,MU,1);txt(String(o.net),x,y+54,20,o.net<0?RD:GR,1);
+  txt(o.runs+' runs - '+o.wk+' wkts x '+Wk+'  |  '+ovs(o.legal)+' ov',x+tw(String(o.net),20,1)+10,y+62,8,MU)});
+ y+=92;
+ m.inn.forEach((n,i)=>{const o=O[i],bt=n.bat,bw=n.bowl;
+  bar('INNINGS '+(i+1)+'   '+m.teams[bt].name+' batting',o.net);sub(o.runs+' runs  -  '+o.wk+' wickets x '+Wk+' = net '+o.net+'   |   '+ovs(o.legal)+' of '+MAXO(m)+' overs');
+  lab('BATTING');const cn=(b,h)=>b.d.filter(d=>d.h==h).length||'-';
+  table([['Batter',186,'l'],['Ct',34,'c'],['RO',34,'c'],['St',34,'c'],['Bwd',38,'c'],['R',36,'r'],['B',36,'r'],['Out',36,'r'],['Net',44,'r'],['SR',49,'r']],
+   Object.keys(o.bat).sort((a,b)=>a-b).map(k=>{const b=o.bat[k],x=T[bt][k];x.r+=b.r;x.o+=b.w;return[nm(bt,k),cn(b,'c'),cn(b,'ro'),cn(b,'st'),cn(b,'b'),b.r,b.b,b.w,b.r-b.w*Wk,b.b?(b.r/b.b*100).toFixed(1):'-']}));
+  lab('PAIRS AND SPELLS');
+  table([['Pair / spell',277,'l'],['Ov',50,'r'],['R',50,'r'],['Out',50,'r'],['Net',100,'r']],Object.keys(o.pair).sort().map(k=>{const p=o.pair[k];return[((SPL(n)[k]||{}).pl||[]).map(x=>nm(bt,x)).join(' & '),ovs(p.b),p.r,p.w,p.r-p.w*Wk]}));
+  lab('BOWLING - '+m.teams[bw].name);
+  table([['Bowler',187,'l'],['Ov',55,'r'],['R',55,'r'],['W',55,'r'],['Wd',55,'r'],['Nb',55,'r'],['Eco',65,'r']],
+   Object.keys(o.bowl).map(k=>{const b=o.bowl[k],x=T[bw][k];x.w+=b.w;x.g+=b.r;return[nm(bw,k),ovs(b.b),b.r,b.w,b.wd,b.nb,b.b?(b.r*6/b.b).toFixed(2):'-']}));
+  const fk=Object.keys(o.fld);fk.forEach(k=>{const f=o.fld[k],x=T[bw][k];x.ct+=f.ct;x.ro+=f.ro;x.st+=f.st});
+  if(fk.length){lab('FIELDING');table([['Fielder',287,'l'],['Catches',80,'r'],['Run outs',80,'r'],['Stumpings',80,'r']],fk.map(k=>[nm(bw,k),o.fld[k].ct,o.fld[k].ro,o.fld[k].st]))}
+  need(24);txt('Extras:  wides '+o.wd+'   |   no-balls '+o.nb+'   |   total '+(o.wd+o.nb),M+2,y,9,TX,1);y+=26});
+ const RW=m.teams.map((t,ti)=>t.players.map((p,k)=>{const x=T[ti][k];return{p,...x,c:x.r+(x.w+x.ro)*Wk-x.g-x.o*Wk}}).sort((a,b)=>b.c-a.c));
+ pg();bar('MATCH SUMMARY - BEST PLAYERS');y+=12;const cw=(TW-12)/2;
+ RW.forEach((rows,ti)=>{const x=M+ti*(cw+12),b=rows.filter(r=>r.c==rows[0].c),nmx=b.slice(0,3).map(r=>r.p).join(' & ')+(b.length>3?' +'+(b.length-3)+' more':'');
+  rect(x,y,cw,64,LT);rect(x,y,cw,4,GD);txt('BEST PLAYER',x+10,y+12,7.5,MU,1);txt(fit(nmx,cw-80,13,1),x+10,y+25,13,TX,1);txt(fit(m.teams[ti].name,cw-80,8.5,0),x+10,y+44,8.5,MU);
+  txt(String(rows[0].c),x+cw-10,y+16,24,rows[0].c<0?RD:GR,1,'r');txt('contribution',x+cw-10,y+46,7.5,MU,0,'r')});
+ y+=82;
+ RW.forEach((rows,ti)=>{lab(m.teams[ti].name+' - PLAYER CONTRIBUTION (team total '+rows.reduce((a,r)=>a+r.c,0)+')');
+  table([['Player',187,'l'],['Runs',55,'r'],['Wkts',55,'r'],['Given',55,'r'],['Out',55,'r'],['RO',55,'r'],['Contrib',65,'r']],rows.map(r=>[r.p,r.r,r.w,r.g,r.o,r.ro,r.c]))});
+ need(20);txt('Contribution = runs scored + '+Wk+' x (bowling wickets + run outs) - runs given - '+Wk+' x times out.',M+2,y,7.5,MU);
+ P.forEach((_,i)=>{ci=i;rect(M,H-34,TW,.6,MU);txt('Indoor Cricket Scorer',M,H-28,7.5,MU);txt('Page '+(i+1)+' of '+P.length,W-M,H-28,7.5,MU,0,'r')});
+ const o=[],F=3+P.length*2;o[1]='<</Type/Catalog/Pages 2 0 R>>';o[2]='<</Type/Pages/Kids['+P.map((_,i)=>(3+i*2)+' 0 R').join(' ')+']/Count '+P.length+'>>';
+ P.forEach((q,i)=>{const c=q.join('\n');o[3+i*2]='<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents '+(4+i*2)+' 0 R/Resources<</Font<</F1 '+F+' 0 R/F2 '+(F+1)+' 0 R>>>>>>';o[4+i*2]='<</Length '+c.length+'>>\nstream\n'+c+'\nendstream'});
+ o[F]='<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>';o[F+1]='<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>';
+ let out='%PDF-1.4\n';const off=[];for(let i=1;i<o.length;i++){off[i]=out.length;out+=i+' 0 obj\n'+o[i]+'\nendobj\n'}
+ const xr=out.length;out+='xref\n0 '+o.length+'\n0000000000 65535 f \n'+off.slice(1).map(v=>String(v).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<</Size '+o.length+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF';
  return new Blob([out],{type:'application/pdf'})}
 /*ENDPDF*/
 async function pdf(id){const m=id?S.ms.find(x=>x.id==id):M();if(!m)return dlg('Start or open a match first');
- const name=(m.teams[0].name+'-v-'+m.teams[1].name).replace(/[^\w-]+/g,'_')+'.pdf',blob=mkpdf(pdfLines(m));
+ const name=(m.teams[0].name+'-v-'+m.teams[1].name).replace(/[^\w-]+/g,'_')+'.pdf',blob=pdfBuild(m);
  try{const d=window.claude&&await claude.use('downloads');
   if(d)await d.save({filename:name,data:blob});
   else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
