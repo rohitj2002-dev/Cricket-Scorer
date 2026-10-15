@@ -141,22 +141,23 @@ function pdfBuild(m){
  const tw=(s,z,b)=>{let w=0;for(const ch of s)w+=HW[ch.charCodeAt(0)-32]||556;return w*z/1000*(b?1.06:1)};
  const rect=(x,t,w,h,c)=>P[ci].push(col(c)+' rg '+x.toFixed(1)+' '+(H-t-h).toFixed(1)+' '+w.toFixed(1)+' '+h.toFixed(1)+' re f');
  const txt=(s,x,t,z,c,b,a)=>{s=enc(s);const w=tw(s,z,b);if(a=='r')x-=w;if(a=='c')x-=w/2;P[ci].push('BT /'+(b?'F2':'F1')+' '+z+' Tf '+col(c)+' rg '+x.toFixed(1)+' '+(H-t-z*.8).toFixed(1)+' Td ('+s+') Tj ET')};
+ const frame=(x,t,w,h,c)=>{rect(x,t,w,.8,c);rect(x,t+h-.8,w,.8,c);rect(x,t,.8,h,c);rect(x+w-.8,t,.8,h,c)};
  const fit=(s,w,z,b)=>{s=String(s);while(s.length>1&&tw(s,z,b)>w)s=s.slice(0,-1);return s};
  const pg=()=>{P.push([]);ci++;y=34},need=h=>{if(y+h>H-46)pg()};
  const bar=(t,r)=>{need(70);rect(M,y,TW,26,GR);rect(M,y,5,26,GD);txt(t,M+14,y+8,11,WH,1);if(r!=null)txt(String(r),W-M-10,y+4,16,WH,1,'r');y+=26};
  const lab=t=>{need(60);txt(t,M+2,y+4,8,GR,1);y+=15},sub=s=>{txt(s,M+2,y+5,8.5,MU);y+=18};
- function table(cols,rows){const rh=16;need(rh*3);let x=M;const xs=cols.map(c=>{const v=x;x+=c[1];return v});
-  const hd=()=>{rect(M,y,TW,rh,DK);cols.forEach((c,i)=>txt(c[0],c[2]=='l'?xs[i]+6:xs[i]+c[1]-6,y+4.5,8,WH,1,c[2]));y+=rh};hd();
-  rows.forEach((r,i)=>{if(y+rh>H-46){pg();hd()}if(i%2==0)rect(M,y,TW,rh,LT);
+ function table(cols,rows){const rh=16,BD=[190,206,197];need(rh*3);let x=M,ys=0;const xs=cols.map(c=>{const v=x;x+=c[1];return v});
+  const hd=()=>{ys=y;rect(M,y,TW,rh,DK);cols.forEach((c,i)=>txt(c[0],c[2]=='l'?xs[i]+6:xs[i]+c[1]-6,y+4.5,8,WH,1,c[2]));y+=rh},box=()=>{xs.slice(1).forEach(v=>rect(v-.25,ys+rh,.5,y-ys-rh,BD));rect(M,ys,TW,.8,GR);rect(M,y-.8,TW,.8,GR);rect(M,ys,.8,y-ys,GR);rect(M+TW-.8,ys,.8,y-ys,GR)};hd();
+  rows.forEach((r,i)=>{if(y+rh>H-46){box();pg();hd()}if(i%2==0)rect(M,y,TW,rh,LT);
    cols.forEach((c,j)=>{const h=c[0],s=c[2]=='l'?fit(r[j],c[1]-12,8.5,0):String(r[j]),bd=['Net','Contrib','R'].includes(h),neg=(h=='Net'||h=='Contrib')&&/^-\d/.test(s);
-    txt(s,c[2]=='l'?xs[j]+6:xs[j]+c[1]-6,y+4.5,8.5,neg?RD:TX,bd,c[2])});y+=rh});
-  rect(M,y,TW,.8,GR);y+=12}
+    txt(s,c[2]=='l'?xs[j]+6:xs[j]+c[1]-6,y+4.5,8.5,neg?RD:TX,bd,c[2])});rect(M,y+rh-.5,TW,.5,BD);y+=rh});
+  box();y+=12}
  const nm=(t,k)=>m.teams[t].players[k]||'?',Wk=m.cfg.wkt,T=m.teams.map(t=>t.players.map(()=>({r:0,o:0,w:0,g:0,ct:0,ro:0,st:0}))),O=m.inn.map((n,i)=>compute(m,i));
  rect(0,0,W,92,DK);rect(0,92,W,4,GD);
  txt('INDOOR CRICKET  |  MATCH SCORECARD',M,24,8.5,GD,1);
  txt(fit(m.teams[0].name+'  v  '+m.teams[1].name,TW,22,1),M,40,22,WH,1);
  txt(fit(m.date+'   |   '+m.fmt+' players a side   |   '+MAXO(m)+' overs'+(m.toss?'   |   Toss: '+m.teams[m.toss.w].name+' chose to '+m.toss.c:''),TW,9,0),M,72,9,[190,215,203]);
- y=112;rect(M,y,TW,76,LT);rect(M,y,5,76,GD);
+ y=112;rect(M,y,TW,76,LT);frame(M,y,TW,76,[190,206,197]);rect(M,y,5,76,GD);
  txt(m.done?'RESULT':'MATCH IN PROGRESS',M+16,y+9,8,MU,1);
  txt(fit(m.done?result(m):'Innings '+(m.ci+1)+' of 2',TW-30,15,1),M+16,y+21,15,TX,1);
  O.forEach((o,i)=>{const n=m.inn[i],x=M+16+i*TW/2,t=m.teams[n.bat].name;txt(fit(t,TW/2-30,8.5,1),x,y+44,8.5,MU,1);txt(String(o.net),x,y+54,20,o.net<0?RD:GR,1);
@@ -178,7 +179,7 @@ function pdfBuild(m){
  const RW=m.teams.map((t,ti)=>t.players.map((p,k)=>{const x=T[ti][k];return{p,...x,c:x.r+(x.w+x.ro)*Wk-x.g-x.o*Wk}}).sort((a,b)=>b.c-a.c));
  pg();bar('MATCH SUMMARY - BEST PLAYERS');y+=12;const cw=(TW-12)/2;
  RW.forEach((rows,ti)=>{const x=M+ti*(cw+12),b=rows.filter(r=>r.c==rows[0].c),nmx=b.slice(0,3).map(r=>r.p).join(' & ')+(b.length>3?' +'+(b.length-3)+' more':'');
-  rect(x,y,cw,64,LT);rect(x,y,cw,4,GD);txt('BEST PLAYER',x+10,y+12,7.5,MU,1);txt(fit(nmx,cw-80,13,1),x+10,y+25,13,TX,1);txt(fit(m.teams[ti].name,cw-80,8.5,0),x+10,y+44,8.5,MU);
+  rect(x,y,cw,64,LT);frame(x,y,cw,64,[190,206,197]);rect(x,y,cw,4,GD);txt('BEST PLAYER',x+10,y+12,7.5,MU,1);txt(fit(nmx,cw-80,13,1),x+10,y+25,13,TX,1);txt(fit(m.teams[ti].name,cw-80,8.5,0),x+10,y+44,8.5,MU);
   txt(String(rows[0].c),x+cw-10,y+16,24,rows[0].c<0?RD:GR,1,'r');txt('contribution',x+cw-10,y+46,7.5,MU,0,'r')});
  y+=82;
  RW.forEach((rows,ti)=>{lab(m.teams[ti].name+' - PLAYER CONTRIBUTION (team total '+rows.reduce((a,r)=>a+r.c,0)+')');
