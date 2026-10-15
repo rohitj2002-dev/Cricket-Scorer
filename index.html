@@ -100,13 +100,15 @@ function grp(){dlg('Group code: everyone using the same code shares the same mat
  if(G&&G!=v){S.ms=[];S.cur=null;S.view='hist';LP={}}G=v;try{localStorage.setItem('icmg',G)}catch(e){}hd();sub();render()},G)}
 const M=()=>S.ms.find(x=>x.id==S.cur);
 function go(v){S.view=v;if(v=='setup')S.cur=null;S.fix=false;save();render()}
-function start(){if(RO())return;
+function tossSet(k,v){S.ts=S.ts||{};S.ts[k]=v;render()}
+function startM(){const m=M(),t=S.ts||{};if(RO()||t.w==null||!t.c)return;const fb=t.c=='bat'?t.w:1-t.w;m.toss={w:t.w,c:t.c};m.inn=[{bat:fb,bowl:1-fb,ev:[],sp:[],ovb:{},done:false}];m.ci=0;m.done=false;S.ts={};S.tab='score';save();render()}
+function start(go){if(RO())return;
  const f=S.fmt,mk=i=>{const nm=($('#n'+i).value.trim()||'Team '+'AB'[i]);const raw=$('#p'+i).value.split('\n').map(x=>x.trim()).filter(Boolean);
   return{name:nm,pl:Array.from({length:f},(_,k)=>raw[k]||'Player '+(k+1))}};
- const t=[mk(0),mk(1)],fb=+$('#fb').value;
+ const t=[mk(0),mk(1)];
  const m={id:Date.now(),fmt:f,teams:t.map(x=>({name:x.name,players:x.pl})),cfg:{...CFG},ci:0,done:false,date:new Date().toLocaleString(),
-  inn:[{bat:fb,bowl:1-fb,ev:[],sp:[],ovb:{},done:false}]};
- S.ms.unshift(m);S.cur=m.id;S.view='live';S.tab='score';save();render();
+  inn:[],toss:null};
+ S.ms.unshift(m);S.cur=m.id;S.view=go?'live':'hist';S.tab='score';S.ts={};save();render();if(!go)dlg('Match saved. Open History and tap Start (toss) when you are ready to begin.');
 }
 function add(e){const m=M(),n=m.inn[m.ci],o=compute(m,m.ci);if(o.done||!o.sp||n.ovb[o.ov]==null)return;n.ev.push({...e,bw:n.ovb[o.ov]});S.mode='';save();render()}
 function press(r){add(S.mode?{t:S.mode,r,c:S.cnt}:{t:'r',r})}
@@ -153,7 +155,7 @@ function pdfBuild(m){
  rect(0,0,W,92,DK);rect(0,92,W,4,GD);
  txt('INDOOR CRICKET  |  MATCH SCORECARD',M,24,8.5,GD,1);
  txt(fit(m.teams[0].name+'  v  '+m.teams[1].name,TW,22,1),M,40,22,WH,1);
- txt(m.date+'   |   '+m.fmt+' players a side   |   '+MAXO(m)+' overs',M,72,9,[190,215,203]);
+ txt(fit(m.date+'   |   '+m.fmt+' players a side   |   '+MAXO(m)+' overs'+(m.toss?'   |   Toss: '+m.teams[m.toss.w].name+' chose to '+m.toss.c:''),TW,9,0),M,72,9,[190,215,203]);
  y=112;rect(M,y,TW,76,LT);rect(M,y,5,76,GD);
  txt(m.done?'RESULT':'MATCH IN PROGRESS',M+16,y+9,8,MU,1);
  txt(fit(m.done?result(m):'Innings '+(m.ci+1)+' of 2',TW-30,15,1),M+16,y+21,15,TX,1);
@@ -190,7 +192,7 @@ function pdfBuild(m){
  const xr=out.length;out+='xref\n0 '+o.length+'\n0000000000 65535 f \n'+off.slice(1).map(v=>String(v).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<</Size '+o.length+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF';
  return new Blob([out],{type:'application/pdf'})}
 /*ENDPDF*/
-async function pdf(id){const m=id?S.ms.find(x=>x.id==id):M();if(!m)return dlg('Start or open a match first');
+async function pdf(id){const m=id?S.ms.find(x=>x.id==id):M();if(!m)return dlg('Start or open a match first');if(!m.inn.length)return dlg('Start the match first - there is nothing to export yet.');
  const name=(m.teams[0].name+'-v-'+m.teams[1].name).replace(/[^\w-]+/g,'_')+'.pdf',blob=pdfBuild(m);
  try{const d=window.claude&&await claude.use('downloads');
   if(d)await d.save({filename:name,data:blob});
@@ -221,11 +223,12 @@ function summ(m){
   return`<div class="card"><h3>${esc(t.name)} — player contribution (${tot})</h3><table><tr><th>Player</th><th>Runs</th><th>Wkts</th><th>Given</th><th>Out</th><th>RO</th><th>Contrib</th></tr>${rows.map(x=>`<tr><td>${esc(x.p)}</td><td>${x.r}</td><td>${x.w}</td><td>${x.g}</td><td>${x.o}</td><td>${x.ro}</td><td><b>${x.c}</b></td></tr>`).join('')}</table><p class="mu">Contribution = runs scored + ${W}×(bowling wickets + run outs) − runs given − ${W}×times out.</p></div>`}).join('')}
 function render(){
  const A=$('#app'),m=M();if(RO()&&S.view=='setup')S.view='hist';
- if(S.view=='hist'){A.innerHTML=`<h3>Match history</h3>`+(S.ms.map(x=>{const d=x.done;return`<div class="card"><b>${esc(x.teams[0].name)} v ${esc(x.teams[1].name)}</b><div class="mu">${x.date} · ${x.fmt} players · ${d?esc(result(x)):'In progress (innings '+(x.ci+1)+')'}</div><div class="row" style="margin-top:8px"><button class="btn" onclick="openM(${x.id},'${d?'res':'live'}')">${d?'View result':RO()?'Watch live':'Resume'}</button><button class="btn" onclick="pdf(${x.id})">PDF</button>${RO()?'':`<button class="btn bad" onclick="delMatch(${x.id})">Delete</button>`}</div></div>`}).join('')||'<p class="mu">No matches yet.</p>');return}
+ if(S.view=='hist'){A.innerHTML=`<h3>Match history</h3>`+(S.ms.map(x=>{const d=x.done;return`<div class="card"><b>${esc(x.teams[0].name)} v ${esc(x.teams[1].name)}</b><div class="mu">${x.date} · ${x.fmt} players · ${d?esc(result(x)):(x.inn.length?'In progress (innings '+(x.ci+1)+')':'Ready - toss pending')}</div><div class="row" style="margin-top:8px"><button class="btn" onclick="openM(${x.id},'${d?'res':'live'}')">${d?'View result':!x.inn.length?(RO()?'View':'Start (toss)'):RO()?'Watch live':'Resume'}</button>${x.inn.length?`<button class="btn" onclick="pdf(${x.id})">PDF</button>`:''}${RO()?'':`<button class="btn bad" onclick="delMatch(${x.id})">Delete</button>`}</div></div>`}).join('')||'<p class="mu">No matches yet.</p>');return}
  if(S.view=='setup'||!m){A.innerHTML=`<div class="card"><h3>Match setup</h3><div class="row"><button class="btn ${S.fmt==10?'on':''}" onclick="S.fmt=10;render()">10 players · 20 overs</button><button class="btn ${S.fmt==11?'on':''}" onclick="S.fmt=11;render()">11 players · 22 overs</button></div></div>
  <div class="grid2">${[0,1].map(i=>`<div class="card"><h3>Team ${'AB'[i]}</h3><input id="n${i}" placeholder="Team ${'AB'[i]} name"><p class="mu" style="margin:8px 0 4px">Players, one per line (batting order, pairs: 1-2, 3-4…). Optional.</p><textarea id="p${i}" rows="${S.fmt+1}"></textarea></div>`).join('')}</div>
- <div class="card"><h3>Batting first</h3><select id="fb"><option value="0">Team A</option><option value="1">Team B</option></select><p class="mu">Scoring: runs face value, wide +2, no-ball +2, wicket −5. You pick each batting pair (4 overs${S.fmt==11?') and one single batter (2 overs, any time)':')'} and a new bowler every over (no back-to-back, max 2 overs each).</p><button class="btn pri" style="width:100%" onclick="start()">Start match</button></div>`;
+ <div class="card"><p class="mu">Scoring: runs face value, wide +2, no-ball +2, wicket −5. You pick each batting pair (4 overs${S.fmt==11?') and one single batter (2 overs, any time)':')'} and a new bowler every over (no back-to-back, max 2 overs each).</p><div class="row"><button class="btn" style="flex:1" onclick="start(0)">Save for later</button><button class="btn pri" style="flex:1" onclick="start(1)">Start match (toss)</button></div></div>`;
  [0,1].forEach(i=>{});return}
+ if(!m.inn.length){const t=S.ts||{};A.innerHTML=RO()?`<div class="card"><h3>Match not started</h3><p>${esc(m.teams[0].name)} v ${esc(m.teams[1].name)}. Waiting for the scorers to do the toss.</p></div>`:`<div class="card"><h3>Toss</h3><b>${esc(m.teams[0].name)} v ${esc(m.teams[1].name)}</b><p class="mu">Who won the toss?</p><div class="row">${[0,1].map(i=>`<button class="btn ${t.w===i?'on':''}" style="flex:1" onclick="tossSet('w',${i})">${esc(m.teams[i].name)}</button>`).join('')}</div><p class="mu">They chose to...</p><div class="row"><button class="btn ${t.c=='bat'?'on':''}" style="flex:1" onclick="tossSet('c','bat')">Bat first</button><button class="btn ${t.c=='bowl'?'on':''}" style="flex:1" onclick="tossSet('c','bowl')">Bowl first</button></div><button class="btn pri" style="width:100%;margin-top:14px" ${t.w!=null&&t.c?'':'disabled'} onclick="startM()">Start match</button></div>`;return}
  if(S.view=='res'||m.done){A.innerHTML=`<div class="sb"><small>RESULT</small><div class="res">${esc(result(m))}</div><div class="mu" style="color:#fff9">${[0,1].map(i=>esc(m.teams[m.inn[i].bat].name)+' '+compute(m,i).net).join(' · ')}</div></div>${card(m,0)}${card(m,1)}${summ(m)}<div class="row noprint"><button class="btn" onclick="window.print()">Print</button>${RO()?'':`<button class="btn" onclick="reopen()">Back to scoring</button><button class="btn pri" onclick="go('setup')">New match</button>`}</div>`;return}
  m.inn.forEach(x=>x.ovb=x.ovb||{});const i=m.ci,n=m.inn[i],o=compute(m,i),bt=m.teams[n.bat],bw=m.teams[n.bowl],mx=MAXO(m)*6;
  let tg='';if(i==1){const t=compute(m,0).net+1,need=t-o.net;tg=`<div style="margin-top:8px">Target <b>${t}</b> · need <b>${Math.max(need,0)}</b> net from ${Math.floor((mx-o.legal)/6)}.${(mx-o.legal)%6>0?(mx-o.legal)%6:0} overs left</div>`}
